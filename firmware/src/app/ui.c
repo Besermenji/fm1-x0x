@@ -1308,7 +1308,8 @@ static void undo_tick(void)
 static void undo_changed(uint32_t off, uint32_t len)
 {
     const uint32_t s0 = __builtin_offsetof(project_t, sound), s1 = s0 + sizeof(sound_t);
-    const uint32_t l0 = __builtin_offsetof(project_t, arr) + __builtin_offsetof(arrange_t, lane);
+    const uint32_t l0 = __builtin_offsetof(project_t, arr) + __builtin_offsetof(arrange_t, lane),
+                   m0 = __builtin_offsetof(project_t, arr) + __builtin_offsetof(arrange_t, pc_map);
     uint32_t a = off + UNDO_OFF, k;
     for (k = a; k < a + len; k++) {
         if (k >= s0 && k < s1) {
@@ -1316,17 +1317,17 @@ static void undo_changed(uint32_t off, uint32_t len)
                      i = x % NPARAMS_MAX;
             if ((int)v < engine_nvoices((int)t) && (int)i < engine_nparams((int)t, (int)v))
                 engine_set((int)t, (int)v, (int)i, proj.sound.v[t][v][i]);
-        } else if (k >= l0) {
+        } else if (k >= l0 && k < m0) {
             undo_lanes = 1;
         }
     }
 }
 
-/* what an undo step touched, in words: "909 P3", "SOUND", "SONG", "MOTION" */
+/* what an undo step touched, in words: "909 P3", "SOUND", "SONG", "MOTION", "PC MAP" */
 static void undo_name(uint32_t lo, uint32_t hi, char *t)
 {
     const uint32_t p0 = __builtin_offsetof(project_t, pat), a0 = __builtin_offsetof(project_t, arr),
-                   l0 = a0 + __builtin_offsetof(arrange_t, lane);
+                   l0 = a0 + __builtin_offsetof(arrange_t, lane), m0 = a0 + __builtin_offsetof(arrange_t, pc_map);
     uint32_t a = lo + UNDO_OFF, b = hi + UNDO_OFF;
     if (b < p0) {
         put_s(t, "SOUND");
@@ -1344,8 +1345,10 @@ static void undo_name(uint32_t lo, uint32_t hi, char *t)
         put_s(t, "PATTERNS");
     } else if (a >= a0 && b < l0) {
         put_s(t, "SONG");
-    } else if (a >= l0) {
+    } else if (a >= l0 && b < m0) {
         put_s(t, "MOTION");
+    } else if (a >= m0) {
+        put_s(t, "PC MAP");
     } else {
         put_s(t, "CHANGES");
     }
@@ -4467,12 +4470,22 @@ static void sp_int(int v)
 static void sp_value(pref_t r)                        /* "64", "-6 DB", "OFF" */
 {
     char num[16], unit[8];
+    if (r.kind == R_PCPAT && !pref_get(r)) {          /* the screen's "-" */
+        sp_cat("NONE");
+        return;
+    }
     pref_value(r, num, unit);
     sp_cat(num);
     if (unit[0]) {
         sp_cat(" ");
         sp_cat(unit);
     }
+}
+/* what a list row says, to tell when it changed: its value (PATTERN in the PC MAP: and whose) */
+static int sp_list_v(pref_t r)
+{
+    int v = r.kind == R_ACT || r.kind == R_HDR ? 0 : pref_get(r);
+    return r.kind == R_PCPAT ? v + (pc_sel << 6) : v;   /* a PC came in: the row is another PC's now */
 }
 static void sp_row(pref_t r)                          /* a list row or a knob: "DECAY 64" */
 {
@@ -4487,6 +4500,11 @@ static void sp_row(pref_t r)                          /* a list row or a knob: "
     sp_cat(caps_of(pref_name(r)));
     if (r.kind == R_ACT)
         return;
+    if (r.kind == R_PCPAT) {                          /* whose: "PATTERN FOR PC 112 P2" */
+        put_i(t, pc_sel);
+        sp_cat(" FOR PC ");
+        sp_cat(t);
+    }
     sp_cat(" ");
     sp_value(r);
 }
@@ -4734,14 +4752,14 @@ static void speak(void)
         sp_readout();                                 /* (a readout left from the page before is not news) */
         put_s(sp.knob, sp_buf);
         sp.list_sel = ui.list_sel;
-        sp.list_v = ui.overlay == O_LIST ? (int16_t)pref_get(list_rows[ui.list_sel]) : 0;
+        sp.list_v = ui.overlay == O_LIST ? (int16_t)sp_list_v(list_rows[ui.list_sel]) : 0;
         sp_front(0);
         ann_later(sp_buf, ANN_NOW, 200u, now);
         return;
     }
     if (ui.overlay == O_LIST && ui.list_sel < ui.list_n) { /* a row moved to, or its value changed */
         pref_t r = list_rows[ui.list_sel];
-        int v = r.kind == R_ACT || r.kind == R_HDR ? 0 : pref_get(r);
+        int v = sp_list_v(r);
         if (ui.list_sel != sp.list_sel || v != sp.list_v) {
             sp.list_sel = ui.list_sel;
             sp.list_v = (int16_t)v;

@@ -17,7 +17,18 @@ expect pcmapped 0
 midi C9 70 00
 wait 100
 expect pattern 1
-# saved in today's format (the stream with the map), it loads the same
+# saved in today's format (the stream with the map: a PC mapped first, so only the new stream can bring
+# it back), it loads the same
+tap GLO
+turn SELECT 9
+turn ALGO 10
+expect pcch 10
+midi C9 70 00
+wait 100
+turn SELECT 2
+spin ALGO 2
+expect pcmap112 2
+tap HOME
 tap SAVE
 wait 1500
 reboot
@@ -25,6 +36,9 @@ wait 300
 expect pattern 1
 expect hit0.0.4 1
 expect songlen 2
+expect songbar2.0 2
 expect mixchset 5
-expect pcch 0
-expect pcmapped 0
+expect tempo 120
+expect pcch 10
+expect pcmap112 2
+expect pcmapped 1

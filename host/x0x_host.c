@@ -972,6 +972,8 @@ static int expect(const char *what, const char *val)
         got = proj.arr.pc_map[atoi(what + 5) % NPC];
     else if (!strcmp(what, "pcsel"))               /* the PC MAP's PC shown */
         got = pc_sel;
+    else if (!strcmp(what, "pbank"))               /* HOME's bank of patterns: 0 = 1-16, 1 = 17-32 */
+        got = ui.pbank;
     else if (!strcmp(what, "store_writes"))
         got = (int)store_writes;
     else if (!strcmp(what, "peak_db_max")) {

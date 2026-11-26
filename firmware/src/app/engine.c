@@ -693,6 +693,7 @@ static volatile uint8_t pc_ch1 POOL;   /* PC IN CH + 1; 0 = OFF */
 static const uint8_t *volatile pc_map POOL;   /* NPC entries: 0 nothing, 1-NPAT the pattern */
 static volatile uint8_t pc_last POOL, pc_seen POOL;   /* the last PC on PC IN CH, and how many came (UI) */
 static uint8_t pc_taken POOL;
+static const pattern_t *pc_pats POOL;   /* the project's patterns: the map's numbers are theirs */
 void engine_pc_config(int ch, const uint8_t *map)
 {
     pc_map = map;
@@ -719,11 +720,13 @@ static void pc_follow(int p)
 static void pc_in(int pc)              /* ISR */
 {
     const uint8_t *map = pc_map;
+    int p = map ? map[pc] : 0;
     pc_last = (uint8_t)pc;
     pc_seen++;
-    if (!map || !map[pc] || map[pc] > NPAT || seq_song_playing(&seq))   /* a song playing decides itself */
+    if (!p || p > NPAT || seq_song_playing(&seq) ||   /* a song playing decides itself; the PERF */
+        seq.pat != pc_pats)                            /* test's own three patterns are not the map's */
         return;
-    pc_follow(map[pc] - 1);
+    pc_follow(p - 1);
 }
 
 /* ---------------------------------------------------------------- MIDI in --- */
@@ -1259,6 +1262,7 @@ void engine_init(pattern_t *patterns, song_t *song, lane_t *lanes, const sound_t
     fxbus_init(&fx, dly_buf, DLY_LEN);
     master_init(&mst);
     seq_init(&seq, patterns);
+    pc_pats = patterns;
     seq.song = song;
     motion_init(&mot, lanes);
     mot.base = mot_base;

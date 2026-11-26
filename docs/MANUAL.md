@@ -172,8 +172,9 @@ anything that would lose notes: press SEL for yes and HOME for no.
 Hold HOME and press REC to take back your last change. The screen says what it undid, for example
 UNDO 909 P1. Hold HOME and press PLAY to redo it. You can go back up to 32 steps, or fewer after
 very big changes. A step is whatever you did before pausing for a moment: a few steps tapped in a
-row, one turn of a knob, or a whole recording pass. Undo covers the sounds, patterns, song and
-knob motion, even CLEAR PATTERN and FACTORY RESET. It doesn't cover the tempo or the settings.
+row, one turn of a knob, or a whole recording pass. Undo covers the sounds, patterns, song,
+knob motion and PC MAP, even CLEAR PATTERN and FACTORY RESET. It doesn't cover the tempo or the
+settings.
 The history is cleared when you switch off.
 
 <details><summary>What the key lights show</summary>
@@ -664,7 +665,7 @@ Press GLO for these settings, in six sections (MIDI, PC MAP, AUDIO, KEYS AND SCR
 | SAVE PROJECT | Saves everything. |
 | AUTOSAVE | At ON (the default), changes are saved by themselves while the pattern is stopped, once nothing has been touched for four seconds. At OFF, only SAVE saves. |
 | CLEAR PATTERN | Clears all five parts of the current pattern. |
-| FACTORY RESET | Goes back to the factory sounds and empty patterns, with no song and no knob motion. Your saved project is kept until you save over it. |
+| FACTORY RESET | Goes back to the factory sounds and empty patterns, with no song, no knob motion and an empty PC MAP. PC IN CH and the MIDI channels stay as they are. Your saved project is kept until you save over it. |
 | PERFORMANCE | Opens the performance page (below). |
 | 2ND CORE | At ON (the default), X0X uses both of the FM-1's processor cores. At OFF, it uses one. The change takes effect the next time you switch on. X0X sets it to OFF by itself if it crashes with two cores (see the performance page, below). |
 | ABOUT X0X | Shows the version, how full the memory for patterns is (MEM), and the audio load. |
@@ -810,12 +811,14 @@ Now a mapped Program Change works like turning PRESETS on HOME: all five parts c
 pattern when the current bar ends, or at once when it's stopped, and a chain ends. HOME shows the
 coming pattern. A Program Change that the map leaves at "-", or one on another channel, changes
 nothing. To have X0X go quiet for one of the other box's patterns, map it to an empty pattern.
-While a song plays, the song chooses the patterns and Program Changes are ignored. While you
-record a song, they're recorded like any other pattern change.
+While a song plays, and while it's stopped on the SONG screen, the song chooses the patterns and
+Program Changes are ignored. While you record a song, they're recorded like any other pattern
+change.
 
 Projects saved before PC IN CH and the PC MAP existed load with PC IN CH at OFF and an empty map.
-An older X0X can't load a project saved with the PC MAP. It starts from the factory sound and
-empty patterns instead.
+An older X0X can't load a project saved by this one, whether it uses the PC MAP or not. It starts
+from the factory sound and empty patterns instead, and its next save (or autosave) replaces your
+project. A backup (section 15) keeps it for when you come back to this version.
 
 ### MIDI CC
 
