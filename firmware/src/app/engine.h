@@ -100,5 +100,8 @@ int engine_cc_send(int t, int v, int i, int val);           /* main loop: the po
                                                              * left for the notes): packets sent */
 int engine_cc_take(uint32_t *pkt);                          /* main loop: a CC that came in (USB-MIDI), 0 none */
 int engine_cc_echo(uint32_t pkt);                           /* 1: a CC the lanes just sent (ALL), come back */
+/* Program Change in: PC IN CH 0-15 (SEQ_CH_OFF = none) and the PC map (NPC entries: 0 nothing, 1-32 the pattern) */
+void engine_pc_config(int ch, const uint8_t *map);
+int engine_pc_take(int *pc);                                /* main loop: 1 and the PC, when one came on PC IN CH */
 int engine_brk_nslots(void);                                /* built-in loops + user slots */
 const char *const *engine_brk_slot_names(void);

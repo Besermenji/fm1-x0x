@@ -250,6 +250,7 @@ static void song_write(seq_t *s, int k, const uint8_t *next)
 }
 
 static int song_plays(const seq_t *s) { return s->song_on && s->song && (s->song_rec || s->song->len); }
+int seq_song_playing(const seq_t *s) { return song_plays(s) && !s->song_rec; }
 
 /* the bar's end (the 909 wrapping), or the start: cues, the chain or the song decide each
  * part's next pattern. Returns the parts whose pattern changed (bit t). */

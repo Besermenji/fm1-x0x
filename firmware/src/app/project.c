@@ -30,6 +30,9 @@ static const uint8_t STREAM_OBJ[] = {OBJ_PAT0, OBJ_PAT1, OBJ_SONG, OBJ_MOTION};
 #define RAW_LEN (sizeof(project_t) - RAW_OFF)   /* the patterns and the arrangement, contiguous */
 typedef char raw_fits[(RAW_LEN < 0xFFFFu) ? 1 : -1];
 typedef char raw_contiguous[(__builtin_offsetof(project_t, arr) == RAW_OFF + sizeof proj.pat) ? 1 : -1];
+#define RAW_LEN_NOPC (RAW_LEN - sizeof proj.arr.pc_map)   /* a stream saved before the PC map (1.3 and older) */
+typedef char pc_map_last[(__builtin_offsetof(project_t, arr.pc_map) + sizeof proj.arr.pc_map == sizeof(project_t)) ? 1 : -1];
+typedef char settings_size[(sizeof(settings_t) == 32u) ? 1 : -1];   /* PC IN CH took the padding: 1.3's size */
 
 static void arrange_defaults(void);
 static uint32_t packed_len;             /* the last save's (or load's) packed stream, bytes */
@@ -259,14 +262,16 @@ static int st_get(void *ctx)
 static int load_stream(int n, uint32_t prev)
 {
     uint8_t *raw = (uint8_t *)&proj + RAW_OFF;
-    uint32_t crc = get32(io_buf + 8), plen = get32(io_buf + 12);
+    uint32_t crc = get32(io_buf + 8), plen = get32(io_buf + 12), len = get32(io_buf + 4), i;
     st_in_t s = {0, n, STREAM_HDR, plen, prev};
     lz_src_t src = {st_get, &s};
-    if (n < (int)STREAM_HDR || get32(io_buf + 4) != RAW_LEN || plen > STREAM_CAP)
+    if (n < (int)STREAM_HDR || (len != RAW_LEN && len != RAW_LEN_NOPC) || plen > STREAM_CAP)
         return -1;
     stored_known[STREAM_OBJ[0]] = !(prev & 1u);
     stored_hash[STREAM_OBJ[0]] = hash_of(io_buf, (uint32_t)n);
-    if (lz_decompress(&src, raw, RAW_LEN) || crc32_of(raw, RAW_LEN) != crc)
+    for (i = 0; i < sizeof proj.arr.pc_map; i++)     /* saved before the PC map: an empty one */
+        proj.arr.pc_map[i] = 0;
+    if (lz_decompress(&src, raw, len) || crc32_of(raw, len) != crc)
         return -1;
     packed_len = plen;
     return 0;
@@ -579,6 +584,12 @@ void project_apply_io(void)
     engine_out_loud(proj.set.out_loud);
     engine_usb_full(proj.set.usb_full);
     project_apply_cc();
+    project_apply_pc();
+}
+
+void project_apply_pc(void)
+{
+    engine_pc_config(proj.set.pc_ch >= 1 && proj.set.pc_ch <= 16 ? proj.set.pc_ch - 1 : SEQ_CH_OFF, proj.arr.pc_map);
 }
 
 void project_apply_cc(void)

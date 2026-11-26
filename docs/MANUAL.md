@@ -172,8 +172,9 @@ anything that would lose notes: press SEL for yes and HOME for no.
 Hold HOME and press REC to take back your last change. The screen says what it undid, for example
 UNDO 909 P1. Hold HOME and press PLAY to redo it. You can go back up to 32 steps, or fewer after
 very big changes. A step is whatever you did before pausing for a moment: a few steps tapped in a
-row, one turn of a knob, or a whole recording pass. Undo covers the sounds, patterns, song and
-knob motion, even CLEAR PATTERN and FACTORY RESET. It doesn't cover the tempo or the settings.
+row, one turn of a knob, or a whole recording pass. Undo covers the sounds, patterns, song,
+knob motion and PC MAP, even CLEAR PATTERN and FACTORY RESET. It doesn't cover the tempo or the
+settings.
 The history is cleared when you switch off.
 
 <details><summary>What the key lights show</summary>
@@ -645,7 +646,7 @@ again.
 
 ![The GLOBAL list: CLOCK OUT ON (highlighted), NOTES OUT OFF, 909 MIDI CH 10, 808 MIDI CH 11, 303A MIDI CH 2, 303B MIDI CH 3.](img/screen-global.png "GLOBAL")
 
-Press GLO for these settings, in five sections (MIDI, AUDIO, KEYS AND SCREEN, PROJECT, SYSTEM):
+Press GLO for these settings, in six sections (MIDI, PC MAP, AUDIO, KEYS AND SCREEN, PROJECT, SYSTEM):
 
 | Setting | What it does |
 |---|---|
@@ -654,6 +655,8 @@ Press GLO for these settings, in five sections (MIDI, AUDIO, KEYS AND SCREEN, PR
 | 909 … BREAK MIDI CH | Sets each part's MIDI channel, for notes and CCs in and out. Choose 1–16, or OFF to ignore incoming notes and CCs for that part (and send none). |
 | CC OUT | At OFF (the default), X0X sends no CCs. At KNOBS, the knobs you turn go out as CCs. At ALL, what knob motion and p-locks play goes out too. For details, see section 16. |
 | MIX MIDI CH | Sets the channel for the mixer's levels, the effects and the master: 1 (the default) to 16, or OFF. |
+| PC IN CH | Sets the channel X0X takes Program Changes on, 1–16, to follow another box's pattern changes through the PC MAP. At OFF (the default), it ignores them. See section 16. |
+| PC MAP: PC, PATTERN | Says which pattern each Program Change (PC 0–127) plays, or "-" for none (the default). PC shows the last one that came in on PC IN CH; turn ALGORITHM on PATTERN to choose its pattern. The map is saved with the project. |
 | OUTPUT | NORMAL, or LOUD, which gives 6 dB more at the headphones and line out (and USB audio), for headphones that need it. The master's LIMIT (on by default) keeps it from clipping. |
 | USB AUDIO | At FOLLOWS KNOB (the default), USB audio is as loud as the FM-1, MASTER knob and all. At FULL, USB audio stays at full level whatever the knob says, so you can record over the cable with the speaker turned down. |
 | LIGHTS | At ON, the key lights show the steps, and the unlit buttons glow dimly so you can read them. At KEYS, you get the key lights only. At OFF, neither. |
@@ -662,7 +665,7 @@ Press GLO for these settings, in five sections (MIDI, AUDIO, KEYS AND SCREEN, PR
 | SAVE PROJECT | Saves everything. |
 | AUTOSAVE | At ON (the default), changes are saved by themselves while the pattern is stopped, once nothing has been touched for four seconds. At OFF, only SAVE saves. |
 | CLEAR PATTERN | Clears all five parts of the current pattern. |
-| FACTORY RESET | Goes back to the factory sounds and empty patterns, with no song and no knob motion. Your saved project is kept until you save over it. |
+| FACTORY RESET | Goes back to the factory sounds and empty patterns, with no song, no knob motion and an empty PC MAP. PC IN CH and the MIDI channels stay as they are. Your saved project is kept until you save over it. |
 | PERFORMANCE | Opens the performance page (below). |
 | 2ND CORE | At ON (the default), X0X uses both of the FM-1's processor cores. At OFF, it uses one. The change takes effect the next time you switch on. X0X sets it to OFF by itself if it crashes with two cores (see the performance page, below). |
 | ABOUT X0X | Shows the version, how full the memory for patterns is (MEM), and the audio load. |
@@ -794,6 +797,28 @@ channel when NOTES OUT is on.
 
 While X0X follows an external clock, the tempo on the top line is averaged over about a second,
 so it doesn't flicker with every clock.
+
+### Program Change
+
+X0X can follow another box's pattern changes, for example a drum machine that sends a Program
+Change each time its pattern changes. Set GLO > PC IN CH to that box's channel. In GLO > PC MAP,
+each Program Change can play one of X0X's patterns:
+
+1. Choose a pattern on the other box. Its Program Change shows as PC in the PC MAP.
+2. Turn SELECT to PATTERN and turn ALGORITHM to choose the pattern X0X plays for it.
+
+Now a mapped Program Change works like turning PRESETS on HOME: all five parts change to that
+pattern when the current bar ends, or at once when it's stopped, and a chain ends. HOME shows the
+coming pattern. A Program Change that the map leaves at "-", or one on another channel, changes
+nothing. To have X0X go quiet for one of the other box's patterns, map it to an empty pattern.
+While a song plays, and while it's stopped on the SONG screen, the song chooses the patterns and
+Program Changes are ignored. While you record a song, they're recorded like any other pattern
+change.
+
+Projects saved before PC IN CH and the PC MAP existed load with PC IN CH at OFF and an empty map.
+An older X0X can't load a project saved by this one, whether it uses the PC MAP or not. It starts
+from the factory sound and empty patterns instead, and its next save (or autosave) replaces your
+project. A backup (section 15) keeps it for when you come back to this version.
 
 ### MIDI CC
 
