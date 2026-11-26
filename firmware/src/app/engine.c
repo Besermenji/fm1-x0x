@@ -685,6 +685,47 @@ int engine_cc_take(uint32_t *pkt)
     return 1;
 }
 
+/* ------------------------------------------------------- Program Change in --- */
+/* PC IN CH and the PC MAP (GLO): a Program Change on that channel plays the pattern the map gives it, so
+ * X0X follows another box's pattern changes (a drum machine sending one as it changes pattern). PCs on
+ * other channels, and unmapped ones, change nothing. */
+static volatile uint8_t pc_ch1 POOL;   /* PC IN CH + 1; 0 = OFF */
+static const uint8_t *volatile pc_map POOL;   /* NPC entries: 0 nothing, 1-NPAT the pattern */
+static volatile uint8_t pc_last POOL, pc_seen POOL;   /* the last PC on PC IN CH, and how many came (UI) */
+static uint8_t pc_taken POOL;
+void engine_pc_config(int ch, const uint8_t *map)
+{
+    pc_map = map;
+    pc_ch1 = (uint8_t)(ch >= 0 && ch < 16 ? ch + 1 : 0);
+}
+int engine_pc_take(int *pc)
+{
+    uint8_t n = pc_seen;
+    if (n == pc_taken)
+        return 0;
+    pc_taken = n;
+    *pc = pc_last;
+    return 1;
+}
+/* What a mapped PC does, in this one place: every part cues the pattern for the 909's next bar (at once
+ * when stopped) and a chain ends, as turning PRESETS on HOME does. Not settled: whether the sender's PC
+ * comes when its pattern is picked or when it switches is unmeasured, and the latter would want the
+ * pattern at once, on the downbeat, instead. ISR: flag writes only */
+static void pc_follow(int p)
+{
+    seq_chain(&seq, 0, 0);
+    seq_cue(&seq, p);
+}
+static void pc_in(int pc)              /* ISR */
+{
+    const uint8_t *map = pc_map;
+    pc_last = (uint8_t)pc;
+    pc_seen++;
+    if (!map || !map[pc] || map[pc] > NPAT || seq_song_playing(&seq))   /* a song playing decides itself */
+        return;
+    pc_follow(map[pc] - 1);
+}
+
 /* ---------------------------------------------------------------- MIDI in --- */
 static uint8_t bass_held[NBASS];       /* note held from MIDI, for legato = slide */
 static uint8_t brk_held POOL;          /* the break's slices held from MIDI (bit: key) */
@@ -700,6 +741,11 @@ static void midi_in(uint32_t pkt)
     case 0xFB: seq_continue(&seq); return;
     case 0xFC: seq_stop(&seq); return;
     default: break;
+    }
+    if (ty == 0xC0) {
+        if (pc_ch1 == ch + 1u)
+            pc_in(d1);
+        return;
     }
     if (ty == 0xB0) {
         if (d1 == 120 || d1 == 123) {                   /* all sound / notes off: the part's MIDI-held notes */

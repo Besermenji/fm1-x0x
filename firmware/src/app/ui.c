@@ -183,7 +183,7 @@ static void warn(const char *a, const char *b) { say_as(a, b, ANN_NOW | ANN_KEEP
 enum { R_NONE, R_ENG, R_SWING, R_DLEN, R_DRATE, R_BLEN, R_BRATE, R_BDIR, R_BTRANS, R_GEN, R_BRKSET,
        R_BRKSLOT, R_TEMPO, R_ACCENT, R_CLKOUT, R_NOTEOUT, R_PALETTE, R_KEYLED, R_KEYSOUND, R_AUTOSAVE, R_ACT, R_SBAR, R_SPAT,
        R_SLEN, R_STALLS, R_HDR, R_TAPE, R_MIDICH, R_OUTLOUD, R_SREP, R_BATT, R_USBFULL, R_FREEPLAY, R_CORES, R_CCOUT,
-       R_MIXCH };   /* R_TAPE: FX's one-knob TAPE (DIGI .. worn tape) */          /* R_HDR: a list's section header (a = its group), never selected */
+       R_MIXCH, R_PCCH, R_PCSEL, R_PCPAT };   /* R_TAPE: FX's one-knob TAPE (DIGI .. worn tape) */          /* R_HDR: a list's section header (a = its group), never selected */
 typedef struct { uint8_t kind, a, b, c; } pref_t;
 #define PR(k, a, b, c) ((pref_t){(k), (a), (b), (c)})
 #define NONE PR(R_NONE, 0, 0, 0)
@@ -234,6 +234,10 @@ static const x0x_param_t CORES_P = {"2ND CORE", 1, 0, CORES_N};   /* proj.set.on
 static const char *const CCOUT_N[] = {"OFF", "KNOBS", "ALL"};
 static const x0x_param_t CCOUT_P = {"CC OUT", 2, 0, CCOUT_N};       /* proj.set.cc_out: CC_OUT_* */
 static const x0x_param_t MIXCH_P = {"MIX MIDI CH", 16, 1, 0};       /* 0 = OFF, 1-16 */
+static const x0x_param_t PCCH_P = {"PC IN CH", 16, 0, 0};           /* proj.set.pc_ch: 0 = OFF, 1-16 */
+static const x0x_param_t PCSEL_P = {"PC", NPC - 1, 0, 0};           /* the PC MAP's entry shown (pc_sel) */
+static const x0x_param_t PCPAT_P = {"PATTERN", NPAT, 0, 0};         /* its pattern: 0 = none ("-"), 1-32 */
+static uint8_t pc_sel X0X_POOL;        /* PC MAP: the PC shown, the last one received on PC IN CH */
 static const x0x_param_t FREEPLAY_P = {"FREE PLAY", 1, 0, ONOFF_N};
 static const x0x_param_t SREP_P = {"REPEAT", 7, 0, 0};    /* the bar plays 1-8 times */
 static const char *const BATT_N[] = {"EMPTY", "1/3", "2/3", "FULL", "USB POWER", "..."};
@@ -302,6 +306,9 @@ static const x0x_param_t *pref_desc(pref_t r)
     case R_CORES: return &CORES_P;
     case R_CCOUT: return &CCOUT_P;
     case R_MIXCH: return &MIXCH_P;
+    case R_PCCH: return &PCCH_P;
+    case R_PCSEL: return &PCSEL_P;
+    case R_PCPAT: return &PCPAT_P;
     case R_FREEPLAY: return &FREEPLAY_P;
     case R_SREP: return &SREP_P;
     case R_BATT: return &BATT_P;
@@ -362,6 +369,9 @@ static int pref_get(pref_t r)
     case R_CORES: return proj.set.one_core;
     case R_CCOUT: return proj.set.cc_out <= CC_OUT_ALL ? proj.set.cc_out : CC_OUT_OFF;
     case R_MIXCH: return !proj.set.mix_ch ? 1 : proj.set.mix_ch > 16 ? 0 : proj.set.mix_ch;
+    case R_PCCH: return proj.set.pc_ch <= 16 ? proj.set.pc_ch : 0;
+    case R_PCSEL: return pc_sel;
+    case R_PCPAT: return proj.arr.pc_map[pc_sel % NPC] <= NPAT ? proj.arr.pc_map[pc_sel % NPC] : 0;
     case R_FREEPLAY: return ui.freeplay[r.a];
     case R_SREP: return ui.song_sel < song()->len ? song()->bar[ui.song_sel].mute >> 5 : 0;
     case R_BATT: return plat_battery() < 0 ? 5 : plat_battery();
@@ -379,6 +389,10 @@ static void pref_set(pref_t r, int v)
     if (!d || r.kind == R_ACT)
         return;
     v = v < 0 ? 0 : v > d->max ? d->max : v;
+    if (r.kind == R_PCSEL) {                          /* which PC the map shows: nothing to save */
+        pc_sel = (uint8_t)v;
+        return;
+    }
     mark_dirty();
     switch (r.kind) {
     case R_ENG:
@@ -444,6 +458,8 @@ static void pref_set(pref_t r, int v)
         break;
     case R_CCOUT: proj.set.cc_out = (uint8_t)v; project_apply_cc(); break;
     case R_MIXCH: proj.set.mix_ch = (uint8_t)(v ? v : 17); project_apply_cc(); break;
+    case R_PCCH: proj.set.pc_ch = (uint8_t)v; project_apply_pc(); break;
+    case R_PCPAT: proj.arr.pc_map[pc_sel % NPC] = (uint8_t)v; break;
     case R_FREEPLAY:
         ui.freeplay[r.a] = (uint8_t)v;
         if (!v && kbd_held_note[r.a]) {                /* a key still down: let it go */
@@ -681,7 +697,9 @@ static void pref_value_of(pref_t r, int v, char *num, char *unit)
     case R_SBAR: put_i(num, v + 1); return;
     case R_SPAT: num[0] = 'P'; put_i(num + 1, v + 1); return;
     case R_MIDICH:
-    case R_MIXCH: if (v) put_i(num, v); else put_s(num, "OFF"); return;
+    case R_MIXCH:
+    case R_PCCH: if (v) put_i(num, v); else put_s(num, "OFF"); return;
+    case R_PCPAT: if (v) { num[0] = 'P'; put_i(num + 1, v); } else put_s(num, "-"); return;
     case R_SREP: num[0] = 'x'; put_i(num + 1, v + 1); return;
     case R_SLEN: put_i(num, v); put_s(unit, "bar"); return;
     default: put_i(num, v); return;
@@ -693,7 +711,7 @@ static void pref_value(pref_t r, char *num, char *unit) { pref_value_of(r, pref_
 #define MAXPAGES 14
 /* page groups: whose values a page holds (the SEL list's headers, the header's colour) */
 enum { GR_NONE, GR_TRACK, GR_TMIX, GR_KIT, GR_PAT, GR_SOUND, GR_MORE,
-       GR_MIDI, GR_AUDIO, GR_KEYS, GR_PROJECT, GR_SYSTEM };   /* (the last five: GLO's sections) */
+       GR_MIDI, GR_AUDIO, GR_KEYS, GR_PROJECT, GR_SYSTEM, GR_PCMAP };   /* (from GR_MIDI: GLO's sections) */
 #define MAXMORE 14
 typedef struct {
     pref_t r[MAXPAGES][4];
@@ -926,7 +944,7 @@ static int track_page(void)
 /* A list is rows of refs. SEL on a page opens the list of every page's knobs (the deep view);
  * GLOBAL is a list of its own. SELECT moves, ALGORITHM changes, SEL runs an action. */
 #define LIST_MAX 64
-static pref_t list_rows[LIST_MAX];
+static pref_t list_rows[LIST_MAX] X0X_POOL;   /* (pool: .bss is full) */
 static char list_title[16];
 
 static void list_add(pref_t r)
@@ -951,6 +969,7 @@ static void hdr_name(int g, char *t)
     case GR_PAT: put_s(put_i(put_s(t, "P"), seq.ppat[ui.part] + 1), ": THE PATTERN"); break;
     case GR_MORE: put_s(t, "MORE"); break;
     case GR_MIDI: put_s(t, "MIDI"); break;
+    case GR_PCMAP: put_s(t, "PC MAP"); break;
     case GR_AUDIO: put_s(t, "AUDIO"); break;
     case GR_KEYS: put_s(t, "KEYS AND SCREEN"); break;
     case GR_PROJECT: put_s(t, "PROJECT"); break;
@@ -1021,6 +1040,10 @@ static void open_global(void)
         list_add(PR(R_MIDICH, p, 0, 0));
     list_add(PR(R_CCOUT, 0, 0, 0));
     list_add(PR(R_MIXCH, 0, 0, 0));
+    list_add(PR(R_PCCH, 0, 0, 0));
+    list_rows[ui.list_n++] = PR(R_HDR, GR_PCMAP, 0, 0);
+    list_add(PR(R_PCSEL, 0, 0, 0));
+    list_add(PR(R_PCPAT, 0, 0, 0));
     list_rows[ui.list_n++] = PR(R_HDR, GR_AUDIO, 0, 0);
     list_add(PR(R_OUTLOUD, 0, 0, 0));
     list_add(PR(R_USBFULL, 0, 0, 0));
@@ -2689,6 +2712,12 @@ static void input(void)
     uint32_t btn = plat_buttons(), keys = plat_keys(), ch, i;
     int e;
     cc_in_drain();                                     /* MIDI in's CCs: as their knobs (midicc.c) */
+    if (engine_pc_take(&e)) {                          /* a PC on PC IN CH: the PC MAP shows it, and HOME */
+        int m = proj.arr.pc_map[e % NPC];              /* the bank of the pattern it cued */
+        pc_sel = (uint8_t)(e % NPC);
+        if (m >= 1 && m <= NPAT && !seq_song_playing(&seq))
+            ui.pbank = (uint8_t)((m - 1) / 16);
+    }
     kbd_rec_tick();                                    /* live recording: a held 303 key's ties */
     ch = btn ^ ui.btn;
     for (i = 0; i < NB; i++) {

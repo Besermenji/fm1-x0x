@@ -1,0 +1,30 @@
+# A project saved by X0X 1.3, before PC IN CH and the PC MAP (tests/fixtures/v13_store.bin, made in 1.3's
+# simulator: the 909's kick on the quarters in P1 and on step 1 in P2, 120 BPM, the song P1 P2, MIX MIDI
+# CH 5) loads as it was, with PC IN CH OFF and an empty map, and saves again in today's format.
+wait 100
+storeload tests/fixtures/v13_store.bin
+reboot
+wait 300
+expect pattern 1
+expect hit0.0.0 1
+expect hit0.0.4 1
+expect tempo 120
+expect songlen 2
+expect songbar2.0 2
+expect mixchset 5
+expect pcch 0
+expect pcmapped 0
+midi C9 70 00
+wait 100
+expect pattern 1
+# saved in today's format (the stream with the map), it loads the same
+tap SAVE
+wait 1500
+reboot
+wait 300
+expect pattern 1
+expect hit0.0.4 1
+expect songlen 2
+expect mixchset 5
+expect pcch 0
+expect pcmapped 0

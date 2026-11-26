@@ -171,6 +171,7 @@ void seq_cue_part(seq_t *s, int part, int pattern);
 void seq_chain(seq_t *s, int a, int b);
 int seq_cue_of(const seq_t *s, int part);   /* the part's cued pattern, or -1 */
 int seq_part_muted(const seq_t *s, int part);
+int seq_song_playing(const seq_t *s); /* the song decides the patterns (on, not recording) */
 
 /* steps of one part's rate, in samples Q8 (no swing) at the current tempo */
 uint32_t seq_step_q8(const seq_t *s, int rate);

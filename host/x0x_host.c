@@ -23,7 +23,7 @@
  *   peakreset                    restart the output peak (expect peak_db_min / peak_db_max)
  *   shot FILE.png                save the screen
  *   leds                         print the lit buttons and keys
- *   expect WHAT VALUE            check state (playing, pattern, cue, view-part, ...): exit 1 on mismatch;
+ *   expect WHAT VALUE            check state (playing, pattern, cue, view-part, pcmapN, ...): exit 1 on mismatch;
  *                                VALUE "<N" / ">N" is a bound
  *   reboot                       save nothing; re-run boot from the simulated flash (persistence test)
  *   sndrev N                     mark the project's sound as revision N (a save then loads through
@@ -963,6 +963,15 @@ static int expect(const char *what, const char *val)
         got = proj.set.cc_out;
     else if (!strcmp(what, "mixchset"))            /* MIX MIDI CH as saved: 0 the default (1), 1-16, 17 OFF */
         got = proj.set.mix_ch;
+    else if (!strcmp(what, "pcch"))                /* PC IN CH as saved: 0 OFF, 1-16 */
+        got = proj.set.pc_ch;
+    else if (!strcmp(what, "pcmapped"))            /* PCs the map gives a pattern */
+        for (int i = got = 0; i < NPC; i++)
+            got += proj.arr.pc_map[i] != 0;
+    else if (!strncmp(what, "pcmap", 5))           /* pcmapN: what PC N plays, 0 nothing, 1-32 the pattern */
+        got = proj.arr.pc_map[atoi(what + 5) % NPC];
+    else if (!strcmp(what, "pcsel"))               /* the PC MAP's PC shown */
+        got = pc_sel;
     else if (!strcmp(what, "store_writes"))
         got = (int)store_writes;
     else if (!strcmp(what, "peak_db_max")) {

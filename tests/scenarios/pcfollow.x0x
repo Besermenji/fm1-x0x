@@ -1,0 +1,132 @@
+# Program Change in: GLO > MIDI > PC IN CH (OFF by default) and GLO > PC MAP (PC 0-127 -> a pattern, or "-").
+# A PC on PC IN CH cues the pattern the map gives it for the next bar (at once when stopped), as PRESETS
+# does; other channels, unmapped PCs and a playing song change nothing. Here a drum machine sends its
+# pattern PCs on channel 10 (112 = its bank 8, pattern 1) and its kit PC on channel 1.
+wait 300
+expect pcch 0
+expect pcmapped 0
+# OFF: a PC changes nothing, and the map does not see it
+midi C9 70 00
+wait 100
+expect pattern 1
+expect cue 0
+expect pcsel 0
+# PC IN CH 10 (GLO: the row after MIX MIDI CH)
+tap GLO
+turn SELECT 9
+expect listsel 10
+turn ALGO 10
+expect pcch 10
+shot pc01_glo_pc_in_ch.png
+# a PC on 10 shows in the PC MAP (PC 112); unmapped, it changes nothing
+midi C9 70 00
+wait 100
+expect pcsel 112
+expect pattern 1
+expect cue 0
+# PATTERN (past the PC MAP header and the PC row): PC 112 -> P2
+turn SELECT 2
+expect listsel 13
+turn ALGO 2
+expect pcmap112 2
+shot pc02_pc_map.png
+# the next PC jumps the map to it: PC 113 -> P3
+midi C9 71 00
+wait 100
+expect pcsel 113
+turn ALGO 3
+expect pcmap113 3
+expect pcmapped 2
+tap HOME
+# wrong channel: the kit PC on channel 1 (even with a mapped number)
+midi C0 70 00
+wait 100
+expect pattern 1
+expect cue 0
+expect pcsel 113
+# unmapped: PC 5 on channel 10
+midi C9 05 00
+wait 100
+expect pcsel 5
+expect pattern 1
+expect cue 0
+# mapped, stopped: at once
+midi C9 70 00
+wait 100
+expect pattern 2
+expect cue 0
+# mapped, playing: cued (HOME's box blinks), it lands when the 909's bar ends (125 BPM: 1.92 s)
+tap HOME
+expect view 0
+tap PLAY
+wait 300
+midi C9 71 00
+wait 100
+expect cue 3
+expect pattern 2
+shot pc03_home_cue.png
+wait 600
+expect pattern 2
+wait 1300
+expect pattern 3
+expect cue 0
+tap PLAY
+wait 100
+# it ends a chain: P1-P4 chained, PC 112 -> P2, which then stays
+expect view 0
+key w0 down
+key w3 down
+wait 50
+key w3 up
+key w0 up
+tap PLAY
+wait 300
+midi C9 70 00
+wait 1800
+expect pattern 2
+wait 1920
+expect pattern 2
+tap PLAY
+wait 100
+# kept: SAVE, then power on again
+tap SAVE
+wait 1500
+reboot
+wait 300
+expect pcch 10
+expect pcmap112 2
+expect pcmap113 3
+expect pcmapped 2
+midi C9 71 00
+wait 100
+expect pattern 3
+# a song playing decides the patterns itself: the PC is ignored
+tap HOME
+tap HOME
+expect view 6
+tapkey w0
+tapkey w0
+expect songlen 2
+turn K1 -5
+tap PLAY
+expect songon 1
+wait 300
+midi C9 70 00
+wait 100
+expect cue 0
+wait 2200
+expect pattern 1
+tap PLAY
+wait 100
+# recording the song, a PC is written into it like PRESETS: bar 2 gets P2
+tap REC
+turn K1 -5
+tap PLAY
+wait 300
+midi C9 70 00
+wait 1800
+expect pattern 2
+tap PLAY
+tap REC
+wait 100
+expect songbar2.0 2
