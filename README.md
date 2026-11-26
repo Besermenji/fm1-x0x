@@ -1,5 +1,11 @@
 # X0X for the M-VAVE FM-1
 
+> **This is a modified version of [X0X](https://github.com/charlesvestal/fm1-x0x), modified by
+> Besermenji, 2026-11-26.** It's based on X0X 1.3. So far it changes only the firmware's identity:
+> the USB name is "X0X VB RIG FM-1", and the firmware number starts with 8 instead of 9
+> (`./build.sh --release 1.3` gives `FM-1_8010300`). X0X's backup script and backup page refuse
+> that number. The links below go to the original X0X, not to this version.
+
 X0X turns the M-VAVE FM-1 into a groovebox: a **909**, an **808**, two **303s** with an acid line
 generator, and a **breakbeat player**, all playing at once. Each part can play its own pattern,
 you can string patterns into a song, and you can record knob moves. Everything runs in stereo,
