@@ -34,6 +34,7 @@
  *   midiclear                    forget the CCs sent (expect ccCH.N, ccouts, ccblockmax, notedrops)
  *   midirate N                   the computer takes N MIDI packets a second (0: as fast as they come)
  *   settrunc N                   the saved settings cut to N bytes (as an older firmware saved them)
+ *   pctdamage                    a byte of the saved PC map changed (it follows the packed stream: its CRC fails)
  *   snapline B                   remember 303 B's line on the pattern shown (expect linechgB: 1 = it changed since)
  *   projimg FILE                 a project as the FM-1 holds it in RAM (fm1_debug peek of proj): saved
  *                                to the simulated flash and booted, as if it had been made here
@@ -967,13 +968,16 @@ static int expect(const char *what, const char *val)
         got = proj.set.pc_ch;
     else if (!strcmp(what, "pcmapped"))            /* PCs the map gives a pattern */
         for (int i = got = 0; i < NPC; i++)
-            got += proj.arr.pc_map[i] != 0;
+            got += proj.pc_map[i] != 0;
     else if (!strncmp(what, "pcmap", 5))           /* pcmapN: what PC N plays, 0 nothing, 1-32 the pattern */
-        got = proj.arr.pc_map[atoi(what + 5) % NPC];
+        got = proj.pc_map[atoi(what + 5) % NPC];
     else if (!strcmp(what, "pcsel"))               /* the PC MAP's PC shown */
         got = pc_sel;
     else if (!strcmp(what, "pbank"))               /* HOME's bank of patterns: 0 = 1-16, 1 = 17-32 */
         got = ui.pbank;
+    else if (!strcmp(what, "rawlen"))              /* the saved stream's raw length (its header, OBJ_PAT0 + 4) */
+        got = store_len[OBJ_PAT0] >= 8 ? (int)(store[OBJ_PAT0][4] | store[OBJ_PAT0][5] << 8 |
+                                               store[OBJ_PAT0][6] << 16 | (uint32_t)store[OBJ_PAT0][7] << 24) : -1;
     else if (!strcmp(what, "store_writes"))
         got = (int)store_writes;
     else if (!strcmp(what, "peak_db_max")) {
@@ -1198,6 +1202,18 @@ int main(int argc, char **argv)
                                                        * the last ones were added saved them */
             if (store_len[OBJ_SET] > atoi(a))
                 store_len[OBJ_SET] = atoi(a);
+        } else if (!strcmp(cmd, "pctdamage")) {       /* a byte of the saved PC map (after the packed stream) changed */
+            static const uint8_t SO[] = {OBJ_PAT0, OBJ_PAT1, OBJ_SONG, OBJ_MOTION};
+            uint32_t at = (uint32_t)(store[OBJ_PAT0][12] | store[OBJ_PAT0][13] << 8 | store[OBJ_PAT0][14] << 16) + 4u + 5u;
+            int k;                                    /* at: past the packed bytes and the tag, into the map */
+            for (k = 0; k < 4; k++) {                 /* the stream's bytes: object 0 from 16, the others from 4 */
+                uint32_t from = k ? 4u : 16u, n = store_len[SO[k]] > (int)from ? (uint32_t)store_len[SO[k]] - from : 0u;
+                if (at < n) {
+                    store[SO[k]][from + at] ^= 0x5Au;
+                    break;
+                }
+                at -= n;
+            }
         } else if (!strcmp(cmd, "midi")) {
             uint32_t s = (uint32_t)strtoul(a, 0, 16), d1 = (uint32_t)strtoul(b, 0, 16), d2 = (uint32_t)strtoul(c, 0, 16);
             uint32_t cin = s >= 0xF0 ? 0x0F : s >> 4;

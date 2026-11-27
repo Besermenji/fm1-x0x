@@ -50,20 +50,21 @@ typedef struct {
                                           * settings keep their size and older ones load it as 0, OFF */
 } settings_t;
 
-/* the song, the motion lanes and the PC map: one blob, split across OBJ_SONG and OBJ_MOTION */
-#define NPC 128                          /* Program Change numbers 0-127 */
+/* the song and the motion lanes: one blob, split across OBJ_SONG and OBJ_MOTION */
 typedef struct {
     song_t song;
     lane_t lane[NLANE];
-    uint8_t pc_map[NPC];                 /* PC MAP: what PC n plays, 0 = nothing ("-"), 1-32 = that pattern.
-                                          * Last, so a stream saved before it loads with an empty map */
 } arrange_t;
 
+#define NPC 128                          /* Program Change numbers 0-127 */
 typedef struct {
     settings_t set;
     sound_t sound;
     pattern_t pat[NPAT];
     arrange_t arr;
+    uint8_t pc_map[NPC];                 /* PC MAP: what PC n plays, 0 = nothing ("-"), 1-32 = that pattern. Saved
+                                          * after the packed stream, outside it, so older firmware still loads the
+                                          * project (project.c) */
 } project_t;
 
 extern project_t proj;

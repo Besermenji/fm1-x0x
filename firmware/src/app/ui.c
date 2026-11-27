@@ -371,7 +371,7 @@ static int pref_get(pref_t r)
     case R_MIXCH: return !proj.set.mix_ch ? 1 : proj.set.mix_ch > 16 ? 0 : proj.set.mix_ch;
     case R_PCCH: return proj.set.pc_ch <= 16 ? proj.set.pc_ch : 0;
     case R_PCSEL: return pc_sel;
-    case R_PCPAT: return proj.arr.pc_map[pc_sel % NPC] <= NPAT ? proj.arr.pc_map[pc_sel % NPC] : 0;
+    case R_PCPAT: return proj.pc_map[pc_sel % NPC] <= NPAT ? proj.pc_map[pc_sel % NPC] : 0;
     case R_FREEPLAY: return ui.freeplay[r.a];
     case R_SREP: return ui.song_sel < song()->len ? song()->bar[ui.song_sel].mute >> 5 : 0;
     case R_BATT: return plat_battery() < 0 ? 5 : plat_battery();
@@ -459,7 +459,7 @@ static void pref_set(pref_t r, int v)
     case R_CCOUT: proj.set.cc_out = (uint8_t)v; project_apply_cc(); break;
     case R_MIXCH: proj.set.mix_ch = (uint8_t)(v ? v : 17); project_apply_cc(); break;
     case R_PCCH: proj.set.pc_ch = (uint8_t)v; project_apply_pc(); break;
-    case R_PCPAT: proj.arr.pc_map[pc_sel % NPC] = (uint8_t)v; break;
+    case R_PCPAT: proj.pc_map[pc_sel % NPC] = (uint8_t)v; break;
     case R_FREEPLAY:
         ui.freeplay[r.a] = (uint8_t)v;
         if (!v && kbd_held_note[r.a]) {                /* a key still down: let it go */
@@ -1309,7 +1309,7 @@ static void undo_changed(uint32_t off, uint32_t len)
 {
     const uint32_t s0 = __builtin_offsetof(project_t, sound), s1 = s0 + sizeof(sound_t);
     const uint32_t l0 = __builtin_offsetof(project_t, arr) + __builtin_offsetof(arrange_t, lane),
-                   m0 = __builtin_offsetof(project_t, arr) + __builtin_offsetof(arrange_t, pc_map);
+                   m0 = __builtin_offsetof(project_t, pc_map);
     uint32_t a = off + UNDO_OFF, k;
     for (k = a; k < a + len; k++) {
         if (k >= s0 && k < s1) {
@@ -1327,7 +1327,7 @@ static void undo_changed(uint32_t off, uint32_t len)
 static void undo_name(uint32_t lo, uint32_t hi, char *t)
 {
     const uint32_t p0 = __builtin_offsetof(project_t, pat), a0 = __builtin_offsetof(project_t, arr),
-                   l0 = a0 + __builtin_offsetof(arrange_t, lane), m0 = a0 + __builtin_offsetof(arrange_t, pc_map);
+                   l0 = a0 + __builtin_offsetof(arrange_t, lane), m0 = __builtin_offsetof(project_t, pc_map);
     uint32_t a = lo + UNDO_OFF, b = hi + UNDO_OFF;
     if (b < p0) {
         put_s(t, "SOUND");
@@ -2716,7 +2716,7 @@ static void input(void)
     int e;
     cc_in_drain();                                     /* MIDI in's CCs: as their knobs (midicc.c) */
     if (engine_pc_take(&e)) {                          /* a PC on PC IN CH: the PC MAP shows it, and HOME */
-        int m = proj.arr.pc_map[e % NPC];              /* the bank of the pattern it cued */
+        int m = proj.pc_map[e % NPC];              /* the bank of the pattern it cued */
         pc_sel = (uint8_t)(e % NPC);
         if (m >= 1 && m <= NPAT && !seq_song_playing(&seq))
             ui.pbank = (uint8_t)((m - 1) / 16);

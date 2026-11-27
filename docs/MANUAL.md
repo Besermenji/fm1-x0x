@@ -816,9 +816,8 @@ Program Changes are ignored. While you record a song, they're recorded like any 
 change.
 
 Projects saved before PC IN CH and the PC MAP existed load with PC IN CH at OFF and an empty map.
-An older X0X can't load a project saved by this one, whether it uses the PC MAP or not. It starts
-from the factory sound and empty patterns instead, and its next save (or autosave) replaces your
-project. A backup (section 15) keeps it for when you come back to this version.
+An older X0X loads a project saved by this one, without the PC MAP. Once it saves, the map is
+gone, and you set it again when you come back.
 
 ### MIDI CC
 
