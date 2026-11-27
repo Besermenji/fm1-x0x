@@ -10,6 +10,10 @@
  * written if it would not fit: "MEMORY FULL") and once to write; an object whose bytes did not
  * change is not written again.
  *
+ * The PC map follows the packed stream, outside it (PCT_*: a tag, the map, its CRC), so the stream itself is
+ * what firmware before the map wrote, and that firmware still loads the project (it reads the stream's packed
+ * length and no further). A stream without it, or with a damaged one, loads with an empty map.
+ *
  * Every object carries its format number. A project saved before the stream (format 1: 16
  * patterns of 32 steps in OBJ_PAT0/1, the song and 32-step lanes in OBJ_SONG/OBJ_MOTION) is
  * converted as it loads: its steps land on steps 1-32, its patterns on 1-16. */
@@ -27,12 +31,13 @@ static const uint8_t STREAM_OBJ[] = {OBJ_PAT0, OBJ_PAT1, OBJ_SONG, OBJ_MOTION};
 #define STREAM_HDR 16u                  /* in the first object: format, raw length, raw CRC, packed length */
 #define STREAM_CAP (NSTREAM * (PLAT_STORE_MAX - 4u) - (STREAM_HDR - 4u))
 #define RAW_OFF __builtin_offsetof(project_t, pat)
-#define RAW_LEN (sizeof(project_t) - RAW_OFF)   /* the patterns and the arrangement, contiguous */
+#define RAW_LEN (__builtin_offsetof(project_t, pc_map) - RAW_OFF)   /* the patterns and the arrangement, contiguous */
 typedef char raw_fits[(RAW_LEN < 0xFFFFu) ? 1 : -1];
 typedef char raw_contiguous[(__builtin_offsetof(project_t, arr) == RAW_OFF + sizeof proj.pat) ? 1 : -1];
-#define RAW_LEN_NOPC (RAW_LEN - sizeof proj.arr.pc_map)   /* a stream saved before the PC map (1.3 and older) */
-typedef char pc_map_last[(__builtin_offsetof(project_t, arr.pc_map) + sizeof proj.arr.pc_map == sizeof(project_t)) ? 1 : -1];
+typedef char raw_as_before[(RAW_LEN == sizeof proj.pat + sizeof proj.arr) ? 1 : -1];   /* the map is not in it */
 typedef char settings_size[(sizeof(settings_t) == 32u) ? 1 : -1];   /* PC IN CH took the padding: 1.3's size */
+#define PCT_MAGIC 0x314D4350u           /* "PCM1": the PC map after the stream */
+#define PCT_LEN (4u + NPC + 4u)         /* the tag, the map, the map's CRC */
 
 static void arrange_defaults(void);
 static uint32_t packed_len;             /* the last save's (or load's) packed stream, bytes */
@@ -60,7 +65,7 @@ void project_defaults(void)
 }
 
 /* how full the stream's room is, in % (GLO > ABOUT) */
-int project_mem_pct(void) { return (int)((packed_len * 100u + STREAM_CAP - 1u) / STREAM_CAP); }
+int project_mem_pct(void) { return (int)(((packed_len + PCT_LEN) * 100u + STREAM_CAP - 1u) / STREAM_CAP); }
 
 /* object payload: format word + body */
 static uint8_t io_buf[PLAT_STORE_MAX] __attribute__((aligned(4)));
@@ -165,6 +170,8 @@ static void arrange_defaults(void)
     uint8_t *z = (uint8_t *)&proj.arr;
     for (i = 0; i < sizeof proj.arr; i++)
         z[i] = 0;
+    for (i = 0; i < NPC; i++)
+        proj.pc_map[i] = 0;
 }
 
 /* ---- the packed stream ---------------------------------------------------------------------- */
@@ -209,9 +216,17 @@ static int save_stream(void)
     uint32_t crc = crc32_of(raw, RAW_LEN);
     st_out_t o = {1, 0, 0, 0, 0};
     lz_sink_t sink = {st_put, &o};
+    uint8_t pct[PCT_LEN];                             /* the PC map, after the stream */
+    uint32_t i;
+    put32(pct, PCT_MAGIC);
+    for (i = 0; i < NPC; i++)
+        pct[4u + i] = proj.pc_map[i];
+    put32(pct + 4u + NPC, crc32_of(proj.pc_map, NPC));
     if (lz_compress(raw, RAW_LEN, &sink))
         return -7;                                    /* would not fit: nothing written */
     packed_len = o.total;
+    if (st_put(&o, pct, PCT_LEN))
+        return -7;
     o.measure = 0;
     o.total = 0;
     o.fill = STREAM_HDR;
@@ -219,7 +234,7 @@ static int save_stream(void)
     put32(io_buf + 4, RAW_LEN);
     put32(io_buf + 8, crc);
     put32(io_buf + 12, packed_len);
-    if (lz_compress(raw, RAW_LEN, &sink) || o.err || st_flush(&o))
+    if (lz_compress(raw, RAW_LEN, &sink) || st_put(&o, pct, PCT_LEN) || o.err || st_flush(&o))
         return -3;
     while (o.k < NSTREAM)                             /* the objects past the stream: empty */
         if (st_flush(&o))
@@ -262,17 +277,28 @@ static int st_get(void *ctx)
 static int load_stream(int n, uint32_t prev)
 {
     uint8_t *raw = (uint8_t *)&proj + RAW_OFF;
-    uint32_t crc = get32(io_buf + 8), plen = get32(io_buf + 12), len = get32(io_buf + 4), i;
+    uint32_t crc = get32(io_buf + 8), plen = get32(io_buf + 12), i;
     st_in_t s = {0, n, STREAM_HDR, plen, prev};
     lz_src_t src = {st_get, &s};
-    if (n < (int)STREAM_HDR || (len != RAW_LEN && len != RAW_LEN_NOPC) || plen > STREAM_CAP)
+    uint8_t pct[PCT_LEN];
+    if (n < (int)STREAM_HDR || get32(io_buf + 4) != RAW_LEN || plen > STREAM_CAP)
         return -1;
     stored_known[STREAM_OBJ[0]] = !(prev & 1u);
     stored_hash[STREAM_OBJ[0]] = hash_of(io_buf, (uint32_t)n);
-    for (i = 0; i < sizeof proj.arr.pc_map; i++)     /* saved before the PC map: an empty one */
-        proj.arr.pc_map[i] = 0;
-    if (lz_decompress(&src, raw, len) || crc32_of(raw, len) != crc)
+    if (lz_decompress(&src, raw, RAW_LEN) || crc32_of(raw, RAW_LEN) != crc)
         return -1;
+    for (i = 0; i < NPC; i++)                        /* the PC map after it; none (saved before the map, or by a
+                                                      * firmware without it), or damaged: an empty one */
+        proj.pc_map[i] = 0;
+    if (!s.left) {
+        int b = 0;
+        s.left = PCT_LEN;
+        for (i = 0; i < PCT_LEN && (b = st_get(&s)) >= 0; i++)
+            pct[i] = (uint8_t)b;
+        if (b >= 0 && get32(pct) == PCT_MAGIC && get32(pct + 4u + NPC) == crc32_of(pct + 4u, NPC))
+            for (i = 0; i < NPC; i++)
+                proj.pc_map[i] = pct[4u + i] <= NPAT ? pct[4u + i] : 0;
+    }
     packed_len = plen;
     return 0;
 }
@@ -589,7 +615,7 @@ void project_apply_io(void)
 
 void project_apply_pc(void)
 {
-    engine_pc_config(proj.set.pc_ch >= 1 && proj.set.pc_ch <= 16 ? proj.set.pc_ch - 1 : SEQ_CH_OFF, proj.arr.pc_map);
+    engine_pc_config(proj.set.pc_ch >= 1 && proj.set.pc_ch <= 16 ? proj.set.pc_ch - 1 : SEQ_CH_OFF, proj.pc_map);
 }
 
 void project_apply_cc(void)

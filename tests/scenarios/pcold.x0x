@@ -1,6 +1,7 @@
 # A project saved by X0X 1.3, before PC IN CH and the PC MAP (tests/fixtures/v13_store.bin, made in 1.3's
 # simulator: the 909's kick on the quarters in P1 and on step 1 in P2, 120 BPM, the song P1 P2, MIX MIDI
-# CH 5) loads as it was, with PC IN CH OFF and an empty map, and saves again in today's format.
+# CH 5) loads as it was, with PC IN CH OFF and an empty map (none after its stream). Saved again, the stream
+# keeps 1.3's raw length, so 1.3 still loads it, and the map follows it.
 wait 100
 storeload tests/fixtures/v13_store.bin
 reboot
@@ -17,8 +18,7 @@ expect pcmapped 0
 midi C9 70 00
 wait 100
 expect pattern 1
-# saved in today's format (the stream with the map: a PC mapped first, so only the new stream can bring
-# it back), it loads the same
+# saved again (a PC mapped first, so only the map after the stream can bring it back), it loads the same
 tap GLO
 turn SELECT 9
 turn ALGO 10
@@ -42,3 +42,12 @@ expect tempo 120
 expect pcch 10
 expect pcmap112 2
 expect pcmapped 1
+expect rawlen 29572
+# a damaged map (its CRC fails) loads empty; the project and the settings are as they were
+pctdamage
+reboot
+wait 300
+expect pcmapped 0
+expect pcch 10
+expect hit0.0.4 1
+expect songlen 2
